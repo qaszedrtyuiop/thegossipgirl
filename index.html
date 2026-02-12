@@ -1,38 +1,141 @@
-
-
 <!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GossipGirl</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=Pinyon+Script&display=swap" rel="stylesheet">
 <script src="/socket.io/socket.io.js"></script>
 <style>
-body{background:linear-gradient(#0a0a0f,#1a0f1f);color:#fff;font-family:Playfair Display,serif;text-align:center}
-h1{font-family:'Pinyon Script',cursive;font-size:72px;margin-top:40px;color:#ffb6d9;text-shadow:0 0 20px #ff69b4}
-.container{max-width:700px;margin:auto}
-.card{background:rgba(255,255,255,0.05);backdrop-filter:blur(10px);padding:20px;border-radius:20px;margin:20px 0;box-shadow:0 0 25px rgba(255,105,180,.3)}
-input,textarea{width:100%;margin:8px 0;padding:10px;border-radius:12px;border:none}
-button{background:#ff69b4;border:none;padding:10px 18px;border-radius:20px;color:white;margin:5px;cursor:pointer}
-img{max-width:100%;border-radius:15px;margin-top:10px}
-.admin{position:fixed;top:20px;right:20px}
+/* Body et fonts */
+body {
+  background: linear-gradient(#0a0a0f, #1a0f1f);
+  color: #fff;
+  font-family: 'Playfair Display', serif;
+  text-align: center;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* Titre en haut */
+h1 {
+  font-family: 'Pinyon Script', cursive;
+  font-size: 72px;
+  margin: 20px 0;
+  color: #ffb6d9;
+  text-shadow: 0 0 20px #ff69b4;
+  flex-shrink: 0;
+}
+
+/* Container pour posts */
+.container {
+  max-width: 95%;
+  margin: 0 auto;
+  padding: 0 10px;
+  flex-grow: 1; /* prend tout l’espace entre titre et formulaire */
+}
+
+/* Cartes posts */
+.card {
+  background: rgba(255,255,255,0.05);
+  backdrop-filter: blur(10px);
+  padding: 20px;
+  border-radius: 20px;
+  margin: 15px 0;
+  box-shadow: 0 0 25px rgba(255,105,180,0.3);
+  text-align: left;
+}
+
+/* Images dans les posts */
+img {
+  max-width: 100%;
+  border-radius: 15px;
+  margin-top: 10px;
+}
+
+/* Formulaire en bas */
+.form-card {
+  background: rgba(255,255,255,0.05);
+  backdrop-filter: blur(10px);
+  padding: 20px;
+  border-radius: 20px;
+  margin: 10px auto;
+  max-width: 95%;
+}
+
+/* Inputs et textarea */
+input, textarea {
+  width: 100%;
+  margin: 8px 0;
+  padding: 10px;
+  border-radius: 12px;
+  border: none;
+  font-size: 16px;
+}
+
+/* Boutons */
+button {
+  background: #ff69b4;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 20px;
+  color: white;
+  margin: 5px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+/* Bouton admin plus petit et en bas à droite */
+/* Bouton admin discret et fixe en bas à droite */
+.admin {
+  position: fixed;      /* reste toujours au même endroit */
+  bottom: 15px;         /* à 15px du bas */
+  right: 15px;          /* à 15px de la droite */
+  z-index: 1000;        /* toujours au-dessus */
+  padding: 6px 10px;    /* plus petit */
+  font-size: 12px;      /* petit texte */
+  border-radius: 12px;  /* arrondi discret */
+  background: rgba(255,105,180,0.6); /* légèrement transparent */
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 0 8px rgba(255,105,180,0.5); /* petit effet */
+}
+
+/* Responsive pour mobile */
+@media (max-width: 480px) {
+  h1 {
+    font-size: 48px;
+  }
+  button {
+    width: 90%;
+    font-size: 16px;
+    padding: 12px;
+  }
+}
 </style>
 </head>
 <body>
+
 <h1>GossipGirl</h1>
 
+<!-- Container posts -->
 <div class="container">
-<div class="card">
-<h2>Envoyer un gossip</h2>
-<form id="form">
-<input placeholder="Titre" name="title" required />
-<textarea placeholder="Dis tout..." name="description" required></textarea>
-<input type="file" name="image" />
-<button>Envoyer</button>
-</form>
+  <div id="posts"></div>
 </div>
 
-<div id="posts"></div>
+<!-- Formulaire en bas -->
+<div class="form-card">
+  <h2>Envoyer un gossip</h2>
+  <form id="form">
+    <input placeholder="Titre" name="title" required />
+    <textarea placeholder="Dis tout..." name="description" required></textarea>
+    <input type="file" name="image" />
+    <button type="submit">Envoyer</button>
+  </form>
 </div>
 
 <button class="admin" onclick="adminLogin()">ADMIN</button>
@@ -40,56 +143,77 @@ img{max-width:100%;border-radius:15px;margin-top:10px}
 <script>
 const socket = io();
 
+// Charger le post publié
 async function loadPosts(){
   const r = await fetch('/posts');
   const posts = await r.json();
-  document.getElementById('posts').innerHTML = posts.map(p=>p?`
+  const postsContainer = document.getElementById('posts');
+  if(posts.length === 0){
+    postsContainer.innerHTML = "<div class='card'>Aucun gossip pour le moment...</div>";
+    return;
+  }
+  postsContainer.innerHTML = posts.map(p => `
     <div class='card'>
       <h2>${p.title}</h2>
       <p>${p.description}</p>
-      ${p.image?`<img src='${p.image}'>`:''}
-    </div>`:`<div class='card'>Aucun gossip pour le moment...</div>`).join('');
+      ${p.image ? `<img src='${p.image}'>` : ''}
+    </div>
+  `).join('');
 }
-loadPosts();
 
+loadPosts();
 socket.on('new_post', ()=>loadPosts());
 
-document.getElementById('form').onsubmit = async e=>{
+// Envoyer un post
+document.getElementById('form').addEventListener('submit', async e => {
   e.preventDefault();
   const fd = new FormData(e.target);
-  await fetch('/submit',{method:'POST',body:fd});
-  alert('Envoyé à Gossip Girl');
-  e.target.reset();
-};
+  const res = await fetch('/submit', {method:'POST', body: fd});
+  if(res.ok){
+    alert('Envoyé à Gossip Girl');
+    e.target.reset();
+  } else {
+    alert('Erreur lors de l’envoi');
+  }
+});
 
-async function adminLogin(){
+// Admin functions
+window.adminLogin = async function(){
   const pass = prompt('Mot de passe admin');
-  const r = await fetch('/admin-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pass})});
+  if(!pass) return;
+  const r = await fetch('/admin-login', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({password: pass})
+  });
   const data = await r.json();
-  if(!data.ok) return alert('Wrong password');
+  if(!data.ok) return alert('Mot de passe incorrect');
 
-  const panel = await fetch('/pending');
-  const posts = await panel.json();
-
-  document.body.innerHTML = '<h1>ADMIN PANEL</h1>' + posts.map(p=>`
+  const panelRes = await fetch('/pending');
+  const posts = await panelRes.json();
+  document.body.innerHTML = '<h1>ADMIN PANEL</h1>' + posts.map(p => `
     <div class='card'>
       <h3>${p.title}</h3>
       <p>${p.description}</p>
-      ${p.image?`<img src='${p.image}'>`:''}
+      ${p.image ? `<img src='${p.image}'>` : ''}
       <br>
       <button onclick="approve(${p.id})">Publier</button>
       <button onclick="reject(${p.id})">Refuser</button>
-    </div>`).join('');
+    </div>
+  `).join('');
 }
 
-async function approve(id){
-  await fetch('/approve/'+id,{method:'POST'});
+// Boutons admin
+window.approve = async function(id){
+  await fetch('/approve/'+id, {method:'POST'});
   location.reload();
 }
-async function reject(id){
-  await fetch('/reject/'+id,{method:'POST'});
+
+window.reject = async function(id){
+  await fetch('/reject/'+id, {method:'POST'});
   location.reload();
 }
 </script>
+
 </body>
 </html>
