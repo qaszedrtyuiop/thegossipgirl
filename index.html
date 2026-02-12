@@ -1,0 +1,95 @@
+
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8" />
+<title>GossipGirl</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=Pinyon+Script&display=swap" rel="stylesheet">
+<script src="/socket.io/socket.io.js"></script>
+<style>
+body{background:linear-gradient(#0a0a0f,#1a0f1f);color:#fff;font-family:Playfair Display,serif;text-align:center}
+h1{font-family:'Pinyon Script',cursive;font-size:72px;margin-top:40px;color:#ffb6d9;text-shadow:0 0 20px #ff69b4}
+.container{max-width:700px;margin:auto}
+.card{background:rgba(255,255,255,0.05);backdrop-filter:blur(10px);padding:20px;border-radius:20px;margin:20px 0;box-shadow:0 0 25px rgba(255,105,180,.3)}
+input,textarea{width:100%;margin:8px 0;padding:10px;border-radius:12px;border:none}
+button{background:#ff69b4;border:none;padding:10px 18px;border-radius:20px;color:white;margin:5px;cursor:pointer}
+img{max-width:100%;border-radius:15px;margin-top:10px}
+.admin{position:fixed;top:20px;right:20px}
+</style>
+</head>
+<body>
+<h1>GossipGirl</h1>
+
+<div class="container">
+<div class="card">
+<h2>Envoyer un gossip</h2>
+<form id="form">
+<input placeholder="Titre" name="title" required />
+<textarea placeholder="Dis tout..." name="description" required></textarea>
+<input type="file" name="image" />
+<button>Envoyer</button>
+</form>
+</div>
+
+<div id="posts"></div>
+</div>
+
+<button class="admin" onclick="adminLogin()">ADMIN</button>
+
+<script>
+const socket = io();
+
+async function loadPosts(){
+  const r = await fetch('/posts');
+  const posts = await r.json();
+  document.getElementById('posts').innerHTML = posts.map(p=>p?`
+    <div class='card'>
+      <h2>${p.title}</h2>
+      <p>${p.description}</p>
+      ${p.image?`<img src='${p.image}'>`:''}
+    </div>`:`<div class='card'>Aucun gossip pour le moment...</div>`).join('');
+}
+loadPosts();
+
+socket.on('new_post', ()=>loadPosts());
+
+document.getElementById('form').onsubmit = async e=>{
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  await fetch('/submit',{method:'POST',body:fd});
+  alert('Envoyé à Gossip Girl');
+  e.target.reset();
+};
+
+async function adminLogin(){
+  const pass = prompt('Mot de passe admin');
+  const r = await fetch('/admin-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pass})});
+  const data = await r.json();
+  if(!data.ok) return alert('Wrong password');
+
+  const panel = await fetch('/pending');
+  const posts = await panel.json();
+
+  document.body.innerHTML = '<h1>ADMIN PANEL</h1>' + posts.map(p=>`
+    <div class='card'>
+      <h3>${p.title}</h3>
+      <p>${p.description}</p>
+      ${p.image?`<img src='${p.image}'>`:''}
+      <br>
+      <button onclick="approve(${p.id})">Publier</button>
+      <button onclick="reject(${p.id})">Refuser</button>
+    </div>`).join('');
+}
+
+async function approve(id){
+  await fetch('/approve/'+id,{method:'POST'});
+  location.reload();
+}
+async function reject(id){
+  await fetch('/reject/'+id,{method:'POST'});
+  location.reload();
+}
+</script>
+</body>
+</html>
